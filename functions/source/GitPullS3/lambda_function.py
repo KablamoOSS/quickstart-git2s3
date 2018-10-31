@@ -163,6 +163,13 @@ def lambda_handler(event, context):
     if('action' in event['body-json'] and event['body-json']['action'] == 'published'):
         branch_name = 'tags/%s' % event['body-json']['release']['tag_name']
         repo_name = full_name + '/release'
+    elif ('push' in event['body-json'] and
+              'changes' in event['body-json']['push'] and
+              len(event['body-json']['push']['changes']) > 0 and
+              event['body-json']['push']['changes'][0].
+                  get('new',{}).get('type') == 'branch'):
+        branch_name = event['body-json']['push']['changes'][0]['new']['name']
+        repo_name = full_name + '/branch/' + branch_name
     else:
         try:
             branch_name = 'master'
