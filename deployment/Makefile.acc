@@ -1,0 +1,13 @@
+include makefile.inc
+# Generate the list of all subdirectories with have a Makefile in them
+subdirs = $(filter-out $(remove_targets),$(subst ./,,$(sort $(shell find . -mindepth 2 -maxdepth 2 -name Makefile -exec dirname {} \;))))
+dependencies = $(foreach dir,$(subdirs),$(addsuffix /build/$(dir).done,$(dir)))
+
+.PHONY: $(dependencies)
+
+all: $(dependencies)
+
+# Build all targets by changing dir and running 'make' there
+$(dependencies):
+	@echo $(subst .done,,$(notdir $@))
+	cd $(subst .done,,$(notdir $@)) && make

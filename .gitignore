@@ -1,0 +1,13 @@
+.swp
+.*.swp
+.*.swo
+*.pyc
+.DS_Store
+*.retry
+.#*
+*#*#
+.emacs.desktop
+.emacs.desktop.lock
+*~
+build_temp
+build_temp/*

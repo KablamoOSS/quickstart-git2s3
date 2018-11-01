@@ -1,0 +1,14 @@
+[
+  {
+    "ParameterKey": "OutputBucketName",
+    "ParameterValue": "cdpoc-artifacts-source"
+  },
+  {
+    "ParameterKey": "QSS3BucketName",
+    "ParameterValue": "cdpoc-artifacts-build"
+  },
+  {
+    "ParameterKey": "QSS3KeyPrefix",
+    "ParameterValue": "quickstart-git2s3/"
+  }
+]

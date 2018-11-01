@@ -1,0 +1,62 @@
+build_dir ?= build_temp/
+current_dir = $(notdir $(shell pwd))
+
+include ../makefile.inc
+include makefile.inc
+
+SOURCES_TEMPLATES ?= $(wildcard *.template)
+SOURCES_PARAMS = $(wildcard *.parameters)
+SOURCES_TAGS = $(wildcard *.tags)
+
+define build_dir_exists
+	mkdir -p "$(build_dir)"
+endef
+
+default: $(addprefix $(build_dir),$(subst .template,.done,$(SOURCES_TEMPLATES)))
+clean: $(addprefix $(build_dir),$(subst .template,.clean,$(SOURCES_TEMPLATES)))
+
+#.PRECIOUS: ../%.yml
+
+# Target to deploy a CFN stack using the generated parameters and tags files
+# creates a <stackname>.done file in the build directory upon successful
+# stack update or creation
+$(build_dir)%.done: %.template $(build_dir)%.parameters $(build_dir)%.tags
+	@echo ---------- $@ ----------
+	@$(build_dir_exists)
+	aws cloudformation deploy \
+	$(if $(findstring true,${dryrun}),--no-execute-changeset) \
+	$(if ${capabilities},--capabilities ${capabilities}) \
+	$(if ${assume_role},--role-arn ${assume_role}) \
+	$(if ${aws_region},--region ${aws_region},) \
+	$(if ${aws_profile},--profile ${aws_profile},) \
+	$(if $(upload_to_s3),--s3-bucket $(s3_bucket_templates)) \
+	$(if $(upload_to_s3),--s3-prefix $(subst .done,,$(subst $(build_dir),,$@))) \
+	--template-file $(subst .done,,$(subst $(build_dir),,$@)).template \
+	$(if $(shell cat $(subst .done,,$@).parameters),--parameter-overrides $(shell cat $(subst .done,,$@).parameters)) \
+	$(if $(shell cat $(subst .done,,$@).tags),--tags $(shell cat $(subst .done,,$@).tags)) \
+	--stack-name $(subst .done,,$(subst $(build_dir),,$@)) \
+	--no-fail-on-empty-changeset
+	@touch $@
+
+# Target to generate a parameters and tags files in the format accepted by
+# aws cloudformation deploy command, since the latter does not accept JSON
+# files for parameters or tags,
+# see issue https://github.com/aws/aws-cli/issues/2828
+$(build_dir)%.parameters: $(SOURCES_PARAMS)
+	@echo ---------- $@ ----------
+	@$(build_dir_exists)
+	${tools}/convert-params-tags.py \
+		-i $(subst $(build_dir),,$@) \
+		-o $@ \
+		-K ParameterKey -V ParameterValue
+
+$(build_dir)%.tags: $(SOURCES_TAGS)
+	@echo ---------- $@ ----------
+	@$(build_dir_exists)
+	${tools}/convert-params-tags.py \
+		-i $(subst $(build_dir),,$@) \
+		-o $@ \
+		-K Key -V Value
+
+$(build_dir)%.clean:
+	rm -f $(subst .clean,.done,$@)
