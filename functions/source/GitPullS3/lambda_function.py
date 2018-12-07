@@ -163,6 +163,7 @@ def lambda_handler(event, context):
     if('action' in event['body-json'] and event['body-json']['action'] == 'published'):
         branch_name = 'tags/%s' % event['body-json']['release']['tag_name']
         repo_name = full_name + '/release'
+    # Bitbucket branch names handling
     elif ('push' in event['body-json'] and
               'changes' in event['body-json']['push'] and
               len(event['body-json']['push']['changes']) > 0 and
