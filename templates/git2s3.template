@@ -9,6 +9,8 @@ Metadata:
         Parameters:
           - OutputBucketName
           - CustomDomainName
+          - SNSTopicName
+          - SNSEmailAddress
       - Label:
           default: Git Pull Settings
         Parameters:
@@ -44,6 +46,10 @@ Metadata:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
         default: Quick Start S3 Key Prefix
+      SNSTopicName:
+        default: SNS topic name for notifications about Lambda errors
+      SNSEmailAddress:
+        default: Email address to subscribe to the SNS topic
 Parameters:
   AllowedIps:
     Description: gitpull method only. Comma seperated list of IP CIDR blocks for source
@@ -104,6 +110,15 @@ Parameters:
       can include numbers, lowercase letters, uppercase letters, hyphens (-), and
       forward slash (/).
     Type: String
+  SNSTopicName:
+    Description: Name for an SNS topic for Lambda error notifications
+    Type: String
+    Default: ""
+  SNSEmailAddress:
+    Description: Email address to subscribe to the SNS topic
+      SNS topic
+    Type: String
+    Default: ""
 Conditions:
   UseAllowedIps: !Not
     - !Equals
@@ -133,7 +148,41 @@ Conditions:
     - !Equals
       - !Ref 'OutputBucketName'
       - ''
+  SNSTopicNameIsDefined: !Not [ !Equals [ '', !Ref SNSTopicName ] ]
+  SNSEmailAddressIsDefined: !Not [ !Equals [ '', !Ref SNSEmailAddress ] ]
 Resources:
+  SNSTopicLambdaErrors:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !If
+        - SNSTopicNameIsDefined
+        - !Ref SNSTopicName
+        - !Sub "${AWS::StackName}-LambdaErrors"
+      Subscription: !If
+        - SNSEmailAddressIsDefined
+        -
+          - Protocol: email
+            Endpoint: !Ref SNSEmailAddress
+        - !Ref AWS::NoValue
+  CloudWatchAlarmLambdaErrors:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      ActionsEnabled: 'true'
+      AlarmDescription: "Notify of any Git2S3 Lambda errors"
+      AlarmName: !Sub "${AWS::StackName}-LambdaErrors"
+      ComparisonOperator: "GreaterThanThreshold"
+      EvaluationPeriods: "1"
+      AlarmActions:
+          - !Ref SNSTopicLambdaErrors
+      MetricName: "Errors"
+      Namespace: "AWS/Lambda"
+      Dimensions:
+        - Name: "FunctionName"
+          Value: !Ref GitPullLambda
+      Period: "300"
+      Statistic: "Sum"
+      Threshold: "0"
+      TreatMissingData: "missing"
   LambdaZipsBucket:
     Type: AWS::S3::Bucket
     Properties:
