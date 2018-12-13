@@ -117,6 +117,17 @@ def push_s3(filename, repo_name, outputbucket):
     s3.put_object(Bucket=outputbucket, Body=data, Key=s3key)
     logger.info('Completed S3 upload...')
 
+def branch_repo_fallback(event):
+    try:
+        branch_name = 'master'
+        repo_name = event['body-json']['project']['path_with_namespace']
+    except:
+        if 'ref' in event['body-json']:
+            branch_name = event['body-json']['ref'].replace('refs/heads/', '')
+        else:
+            branch_name = 'master'
+        repo_name = full_name + '/branch/' + branch_name
+    return (branch_name, repo_name)
 
 def lambda_handler(event, context):
     keybucket = event['context']['key-bucket']
@@ -166,21 +177,20 @@ def lambda_handler(event, context):
     # Bitbucket branch names handling
     elif ('push' in event['body-json'] and
               'changes' in event['body-json']['push'] and
-              len(event['body-json']['push']['changes']) > 0 and
-              event['body-json']['push']['changes'][0].
-                  get('new',{}).get('type') == 'branch'):
-        branch_name = event['body-json']['push']['changes'][0]['new']['name']
-        repo_name = full_name + '/branch/' + branch_name
-    else:
-        try:
-            branch_name = 'master'
-            repo_name = event['body-json']['project']['path_with_namespace']
-        except:
-            if 'ref' in event['body-json']:
-                branch_name = event['body-json']['ref'].replace('refs/heads/', '')
+              len(event['body-json']['push']['changes']) > 0):
+        push_event = event['body-json']['push']['changes'][0]
+        if push_event.get('new'):
+            if (push_event['new'].get('type') == 'branch'):
+                branch_name = push_event['new']['name']
+                repo_name = full_name + '/branch/' + branch_name
             else:
-                branch_name = 'master'
-            repo_name = full_name + '/branch/' + branch_name
+                (branch_name, repo_name) = branch_repo_fallback(event)
+        else:
+            logger.info('Push event is likely a branch delete from Bitbucket')
+            return
+    else:
+        (branch_name, repo_name) = branch_repo_fallback(event)
+
     try:
         remote_url = event['body-json']['project']['git_ssh_url']
     except Exception:
